@@ -1,15 +1,34 @@
 import streamlit as st
 import torch
-from torch.nn import Linear
+import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as transforms
 import PIL.Image
 
 @st.cache(allow_output_mutation=True)
 def load_model():
-    model = models.resnet18()  # ResNet18の構造を使用
-    model.fc = Linear(512, 2) # ファインチューニング時の最終層の変更部分（必要に応じて）
-    model.load_state_dict(torch.load('dog_cat_ResNet18_01.pt'))
+    class DogCatResNet18(nn.Module):
+        def __init__(self):
+            super(DogCatResNet18, self).__init__()
+            self.feature = models.resnet18(pretrained=False)  # ここでpretrainedはFalseにする
+            self.fc = nn.Linear(1000, 2)
+
+        def forward(self, x):
+            h = self.feature(x)
+            h = self.fc(h)
+            return h
+
+    model = DogCatResNet18()
+
+    # state_dictの読み込み
+    state_dict = torch.load('dog_cat_ResNet18_01.pt')
+
+    # 'feature.feature.'のプレフィックスを取り除く
+    new_state_dict = {k.replace('feature.feature.', 'feature.'): v for k, v in state_dict.items()}
+
+    # 修正したstate_dictをモデルに読み込む
+    model.load_state_dict(new_state_dict)
+
     model.eval()  # 評価モードにセット
     return model
 
@@ -43,6 +62,6 @@ if uploaded_file is not None: # 画像がアップロードされたかどうか
         # _, で最大値は無視してインデックスのみ取得
 
     if predicted.item() == 0: # .item()でテンソルが1つの要素だけを含む場合、スカラーとして取り出す
-        st.write("これは犬です！")
-    else:
         st.write("これは猫です！")
+    else:
+        st.write("これは犬です！")
